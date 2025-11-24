@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Thermal Impedance Toolkit (v3)
 
 This GUI lets you:
@@ -16,3 +17,6 @@ python gui.py
 
 ## CSV
 Two columns: `t_seconds, Zth_K_per_W`. Times must be >0.
+=======
+# thermal_impedence_toolkit
+>>>>>>> 9c6e8bfacf69ff54600084385bc49dc8db3d330d
