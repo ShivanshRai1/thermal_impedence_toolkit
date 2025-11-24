@@ -1,0 +1,322 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Thermal Impedance GUI — Standalone</title>
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        body {
+            -webkit-font-smoothing: antialiased;
+        }
+
+        pre {
+            white-space: pre-wrap;
+        }
+
+        .panel-scroll {
+            max-height: 220px;
+            overflow: auto;
+        }
+
+        .log {
+            font-family: monospace;
+            font-size: 12px;
+            color: #444;
+        }
+    </style>
+</head>
+
+<body class="bg-gray-50 p-6">
+    <div class="max-w-6xl mx-auto bg-white rounded-2xl shadow p-6 grid grid-cols-12 gap-6">
+        <div class="col-span-3">
+            <h2 class="text-lg font-semibold mb-3">Thermal Impedance Toolkit</h2>
+            <div class="space-y-3">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">1) Load Zth vs t (CSV)</label>
+                    <input id="fileInput" type="file" accept=".csv" class="mt-2" />
+                    <p class="text-xs text-gray-500 mt-1">CSV must contain columns named <code>tp</code> and
+                        <code>Zth</code> (or t/Z). Case-insensitive.
+                    </p>
+                </div>
+
+                <div class="border rounded p-3">
+                    <h3 class="font-medium">Inputs</h3>
+                    <div class="mt-2 space-y-2">
+                        <div class="flex items-center justify-between">
+                            <label>Order N</label>
+                            <input id="orderN" type="number" class="w-20 p-1 border rounded" value="4" />
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <label>Ref Die Area</label>
+                            <input id="Aref" class="w-24 p-1 border rounded" value="1.0" />
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <label>New Die Area</label>
+                            <input id="Anew" class="w-24 p-1 border rounded" />
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <label>Gamma mode</label>
+                            <select id="gammaMode" class="w-32 p-1 border rounded">
+                                <option value="blended">blended</option>
+                                <option value="fixed">fixed</option>
+                            </select>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <label>Gamma (if fixed)</label>
+                            <input id="gamma" class="w-24 p-1 border rounded" value="0.8" />
+                        </div>
+                        <div class="space-y-2 mt-3">
+                            <button id="fitBtn" class="w-full bg-indigo-600 text-white py-2 rounded">Fit Foster</button>
+                            <button id="cauerBtn" class="w-full bg-yellow-600 text-white py-2 rounded">Convert to
+                                Cauer</button>
+                            <button id="predictBtn" class="w-full bg-green-600 text-white py-2 rounded">Predict
+                                Sibling</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="text-sm text-gray-600" id="notice">(idle)</div>
+                <div class="text-xs log" id="consoleLog"></div>
+            </div>
+        </div>
+
+        <div class="col-span-9">
+            <div class="border-b pb-3 mb-3 flex items-center justify-between">
+                <div class="flex space-x-2">
+                    <button class="px-3 py-1 rounded bg-gray-100">Fit → Foster</button>
+                    <button class="px-3 py-1 rounded bg-white">Foster → Cauer</button>
+                    <button class="px-3 py-1 rounded bg-white">Predict Sibling</button>
+                </div>
+                <div class="text-sm text-gray-500">Interactive preview (log-log transform applied to plot)</div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="bg-white rounded p-3 shadow min-h-[320px]">
+                    <h4 class="font-medium mb-2">Plot</h4>
+                    <canvas id="plotCanvas" class="border rounded" style="height:260px"></canvas>
+                </div>
+
+                <div class="space-y-3">
+                    <div class="bg-white rounded p-3 shadow h-[150px] overflow-auto panel-scroll">
+                        <h4 class="font-medium">Foster R, C values</h4>
+                        <pre id="fosterRC">(empty)</pre>
+                    </div>
+                    <div class="bg-white rounded p-3 shadow h-[150px] overflow-auto panel-scroll">
+                        <h4 class="font-medium">Sanity checks</h4>
+                        <pre id="fosterChecks">(empty)</pre>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="bg-white rounded p-3 shadow h-[220px] overflow-auto panel-scroll">
+                    <h4 class="font-medium">Cauer R, C values</h4>
+                    <pre id="cauerRC">(empty)</pre>
+                </div>
+                <div class="bg-white rounded p-3 shadow h-[220px] overflow-auto panel-scroll">
+                    <h4 class="font-medium">Sanity checks</h4>
+                    <pre id="cauerChecks">(empty)</pre>
+                </div>
+            </div>
+
+            <div class="mt-4 bg-white rounded p-3 shadow">
+                <div class="flex items-start justify-between">
+                    <div>
+                        <h4 class="font-medium">Predicted</h4>
+                        <pre id="predictText">(empty)</pre>
+                    </div>
+                    <div class="space-x-2">
+                        <button id="saveCSV" class="px-3 py-1 bg-gray-200 rounded">Save as CSV</button>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <div class="max-w-6xl mx-auto mt-6 text-sm text-gray-600">
+        <p>Notes: This standalone HTML reproduces the GUI layout from your uploaded <code>guiv5.py</code>. The numerical
+            solvers are not implemented here — this page provides sensible frontend fallbacks and file I/O. If you want
+            a physics-based solver ported to JS, I can add it.</p>
+    </div>
+
+    <script>
+        // small logger visible in the UI
+        function logUI(msg) {
+            console.log(msg);
+            const el = document.getElementById('consoleLog');
+            el.innerText = (el.innerText ? el.innerText + '' : '') + msg;
+        }
+
+        // --- App state ---
+        let csvPoints = []; // {tp, Zth}
+        let fitSeries = null, cauerSeries = null, predSeries = null;
+        const notice = (s) => document.getElementById('notice').innerText = s;
+
+        // --- CSV parsing ---
+        function tinyParseCSV(text) {
+            const lines = text.trim().split(/?/).map(l => l.trim()).filter(Boolean);
+            if (lines.length === 0) return [];
+            const header = lines[0].split(/,|	/).map(h => h.trim().toLowerCase());
+            const tpIdx = header.findIndex(h => ['tp', 't', 'time'].includes(h));
+            const zIdx = header.findIndex(h => ['zth', 'z', 'zth (k/w)'].includes(h));
+            if (tpIdx === -1 || zIdx === -1) return [];
+            const out = [];
+            for (let i = 1; i < lines.length; i++) {
+                const parts = lines[i].split(/,|	/).map(p => p.trim());
+                const tp = parseFloat(parts[tpIdx]);
+                const z = parseFloat(parts[zIdx]);
+                if (!Number.isFinite(tp) || !Number.isFinite(z)) continue;
+                out.push({ tp, Zth: z });
+            }
+            return out.sort((a, b) => a.tp - b.tp);
+        }
+
+        // file load
+        document.getElementById('fileInput').addEventListener('change', (ev) => {
+            try {
+                const f = ev.target.files && ev.target.files[0];
+                if (!f) return;
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const txt = e.target.result;
+                    let pts = [];
+                    if (window.Papa) {
+                        try {
+                            const res = Papa.parse(txt, { header: true, dynamicTyping: true, skipEmptyLines: true });
+                            if (res && res.meta && res.meta.fields) {
+                                const hdr = res.meta.fields.map(h => h.toLowerCase());
+                                const tpKey = hdr.find(h => ['tp', 't', 'time'].includes(h));
+                                const zKey = hdr.find(h => ['zth', 'z', 'zth (k/w)'].includes(h));
+                                if (!tpKey || !zKey) throw new Error('CSV must have columns named tp and Zth');
+                                pts = res.data.map(r => ({ tp: Number(r[tpKey]), Zth: Number(r[zKey]) })).filter(p => Number.isFinite(p.tp) && Number.isFinite(p.Zth));
+                            } else {
+                                pts = tinyParseCSV(txt);
+                            }
+                        } catch (err) { logUI('PapaParse failed: ' + err.message); pts = tinyParseCSV(txt); }
+                    } else {
+                        pts = tinyParseCSV(txt);
+                    }
+                    if (!pts.length) { notice('No valid (tp,Zth) points found in CSV.'); logUI('Parsed 0 points'); }
+                    else { csvPoints = pts; notice(`Loaded ${pts.length} points`); fitSeries = cauerSeries = predSeries = null; updatePlot(); logUI(`Loaded ${pts.length} points`); }
+                };
+                reader.readAsText(f);
+            } catch (err) { logUI('File load error: ' + err.message); alert('Error reading file - see console'); }
+        });
+
+        // --- Plotting (Chart.js) ---
+        const ctx = document.getElementById('plotCanvas').getContext('2d');
+        let chart = new Chart(ctx, {
+            type: 'scatter',
+            data: { datasets: [] },
+            options: {
+                maintainAspectRatio: false,
+                scales: {
+                    x: { type: 'linear', title: { display: true, text: 'log10(tp)' } },
+                    y: { type: 'linear', title: { display: true, text: 'log10(Zth)' } }
+                },
+                plugins: { legend: { display: true } }
+            }
+        });
+
+        function makeLogSeries(points) {
+            return points.map(p => ({ x: Math.log10(Math.max(p.tp, 1e-12)), y: Math.log10(Math.max(Math.abs(p.Zth), 1e-12)), meta: p }));
+        }
+
+        function updatePlot() {
+            const datasets = [];
+            if (csvPoints && csvPoints.length && !fitSeries) datasets.push({ label: 'input', data: makeLogSeries(csvPoints), showLine: true, pointRadius: 2 });
+            if (fitSeries) datasets.push({ label: 'fit', data: makeLogSeries(fitSeries), showLine: true, borderDash: [6, 4], pointRadius: 0 });
+            if (cauerSeries) datasets.push({ label: 'cauer', data: makeLogSeries(cauerSeries), showLine: true, borderDash: [2, 2], pointRadius: 0 });
+            if (predSeries) datasets.push({ label: 'predicted', data: makeLogSeries(predSeries), showLine: true, pointRadius: 0 });
+            chart.data.datasets = datasets;
+            chart.update();
+        }
+
+        // --- Buttons ---
+        document.getElementById('fitBtn').addEventListener('click', async () => {
+            try {
+                document.getElementById('fosterRC').innerText = '';
+                document.getElementById('fosterChecks').innerText = '';
+                if (!csvPoints.length) { alert('Load CSV first'); return; }
+                notice('Fitting Foster... (frontend fallback)');
+
+                // try server
+                try {
+                    const resp = await fetch('/api/fit_foster', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ points: csvPoints, N: Number(document.getElementById('orderN').value) }) });
+                    if (resp.ok) { const j = await resp.json(); document.getElementById('fosterRC').innerText = j.stringify || JSON.stringify(j, null, 2); if (j.fitSeries) { fitSeries = j.fitSeries; } updatePlot(); notice('Fit from server complete'); logUI('Fit from server OK'); return; }
+                    else { logUI('Server fit_foster responded with status ' + resp.status); }
+                } catch (e) { logUI('Server call failed: ' + e.message); }
+
+                // fallback: show input as "fit"
+                fitSeries = csvPoints;
+                document.getElementById('fosterRC').innerText = '(frontend fallback) No server available. Displaying input points as "fit".';
+                document.getElementById('fosterChecks').innerText = 'RMS error: N/ADC check: N/A';
+                notice('Used frontend fallback for Fit Foster.');
+                updatePlot();
+            } catch (err) { logUI('Fit button error: ' + err.message); alert('Error running fit - see console'); }
+        });
+
+        document.getElementById('cauerBtn').addEventListener('click', async () => {
+            try {
+                document.getElementById('cauerRC').innerText = '';
+                document.getElementById('cauerChecks').innerText = '';
+                if (!fitSeries) { alert('Fit first'); return; }
+                notice('Converting Foster → Cauer (frontend fallback)');
+                try {
+                    const resp = await fetch('/api/foster_to_cauer', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ R: null, C: null }) });
+                    if (resp.ok) { const j = await resp.json(); document.getElementById('cauerRC').innerText = j.stringify || JSON.stringify(j, null, 2); cauerSeries = j.series || fitSeries; updatePlot(); notice('Cauer conversion from server complete'); logUI('Cauer from server OK'); return; }
+                    else { logUI('Server foster_to_cauer responded ' + resp.status); }
+                } catch (e) { logUI('Server call failed: ' + e.message); }
+                cauerSeries = fitSeries;
+                document.getElementById('cauerRC').innerText = '(frontend fallback) Cauer conversion not available locally.';
+                document.getElementById('cauerChecks').innerText = 'DC equality: N/A';
+                notice('Used frontend fallback for Foster→Cauer.');
+                updatePlot();
+            } catch (err) { logUI('Cauer button error: ' + err.message); alert('Error running conversion - see console'); }
+        });
+
+        document.getElementById('predictBtn').addEventListener('click', async () => {
+            try {
+                document.getElementById('predictText').innerText = '';
+                if (!csvPoints.length) { alert('Fit first'); return; }
+                const Aref = Number(document.getElementById('Aref').value || 1);
+                const Anew = Number(document.getElementById('Anew').value || 0);
+                if (!Anew) { alert('Enter New Die Area'); return; }
+                notice('Predicting sibling (frontend fallback)');
+                try {
+                    const resp = await fetch('/api/predict', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ points: csvPoints, Aref, Anew }) });
+                    if (resp.ok) { const j = await resp.json(); document.getElementById('predictText').innerText = j.summary || JSON.stringify(j, null, 2); predSeries = j.series || csvPoints; updatePlot(); notice('Prediction from server complete'); logUI('Predict from server OK'); return; }
+                    else { logUI('Server predict responded ' + resp.status); }
+                } catch (e) { logUI('Server call failed: ' + e.message); }
+
+                const scale = Aref / Anew;
+                predSeries = csvPoints.map(p => ({ tp: p.tp, Zth: p.Zth * scale }));
+                document.getElementById('predictText').innerText = `(frontend fallback) Simple area scaling applied: scale = ${scale.toFixed(6)}
+Use backend for physics-based scale.`;
+                notice('Used frontend fallback for Predict.');
+                updatePlot();
+            } catch (err) { logUI('Predict button error: ' + err.message); alert('Error running predict - see console'); }
+        });
+
+        // save CSV
+        document.getElementById('saveCSV').addEventListener('click', () => {
+            try {
+                if (!predSeries || !predSeries.length) { alert('No predicted data to save'); return; }
+                const rows = predSeries.map(p => `${p.tp || ''},${p.Zth || ''}`);
+                const header = 'tp,Zth';
+                const blob = new Blob([header + rows.join('')], { type: 'text/csv' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a'); a.href = url; a.download = 'predicted_zth_vs_tp.csv'; a.click(); URL.revokeObjectURL(url);
+            } catch (err) { logUI('Save CSV error: ' + err.message); alert('Error saving CSV - see console'); }
+        });
+
+        // small helper to initialize empty plot
+        updatePlot();
+    </script>
+</body>
+
+</html>
