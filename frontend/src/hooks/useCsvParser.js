@@ -7,18 +7,25 @@ export function useCsvParser() {
         header: true,
         dynamicTyping: true,
         skipEmptyLines: true,
+        transformHeader: (h) => h.trim().toLowerCase(),
         complete: (results) => {
           try {
             const points = results.data.map((row) => {
-              // Look for columns named tp/t/time and Zth/Z
-              const tp = row.tp || row.t || row.time || row.Time || row.TP || row.T
-              const Zth = row.Zth || row.Z || row.ZTH || row.z
+              // Normalize keys - trim and lowercase
+              const normalizedRow = {}
+              for (const key in row) {
+                normalizedRow[key.trim().toLowerCase()] = row[key]
+              }
               
-              if (tp === undefined || Zth === undefined) {
+              // Look for columns named tp/t/time and zth/z
+              const tp = normalizedRow.tp || normalizedRow.t || normalizedRow.time
+              const zth = normalizedRow.zth || normalizedRow.z
+              
+              if (tp === undefined || zth === undefined) {
                 throw new Error('CSV must contain columns named "tp" (or "t") and "Zth" (or "Z")')
               }
               
-              return { tp: Number(tp), Zth: Number(Zth) }
+              return { tp: Number(tp), Zth: Number(zth) }
             }).filter(p => !isNaN(p.tp) && !isNaN(p.Zth) && p.tp > 0)
             
             if (points.length === 0) {
