@@ -3,15 +3,13 @@ import { FileUpload } from './components/FileUpload'
 import { Sidebar } from './components/Sidebar'
 import { FitFosterTab } from './components/FitFosterTab'
 import { FosterToCauerTab } from './components/FosterToCauerTab'
-import { PredictSiblingTab } from './components/PredictSiblingTab'
 
 function AppContent() {
   const { activeTab, setActiveTab, uploadedPoints } = useData()
 
   const tabs = [
     { id: 'fit', label: 'Fit → Foster', component: FitFosterTab },
-    { id: 'cauer', label: 'Foster → Cauer', component: FosterToCauerTab },
-    { id: 'predict', label: 'Predict Sibling', component: PredictSiblingTab }
+    { id: 'cauer', label: 'Foster → Cauer', component: FosterToCauerTab }
   ]
 
   const ActiveTabComponent = tabs.find(t => t.id === activeTab)?.component

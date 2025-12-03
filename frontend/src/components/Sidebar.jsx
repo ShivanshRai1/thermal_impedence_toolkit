@@ -3,15 +3,7 @@ import { useData } from '../context/DataContext'
 export function Sidebar() {
   const {
     orderN,
-    setOrderN,
-    refArea,
-    setRefArea,
-    newArea,
-    setNewArea,
-    gammaMode,
-    setGammaMode,
-    gammaFixed,
-    setGammaFixed
+    setOrderN
   } = useData()
 
   return (
@@ -32,66 +24,6 @@ export function Sidebar() {
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
-
-        <div>
-          <label className="block text-sm text-gray-700 mb-1">
-            Ref Die Area
-          </label>
-          <input
-            type="number"
-            value={refArea}
-            onChange={(e) => setRefArea(e.target.value)}
-            step="0.1"
-            min="0.1"
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm text-gray-700 mb-1">
-            New Die Area
-          </label>
-          <input
-            type="number"
-            value={newArea}
-            onChange={(e) => setNewArea(e.target.value)}
-            step="0.1"
-            min="0.1"
-            placeholder="e.g., 2.0"
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm text-gray-700 mb-1">
-            Gamma Mode
-          </label>
-          <select
-            value={gammaMode}
-            onChange={(e) => setGammaMode(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="blended">Blended</option>
-            <option value="fixed">Fixed</option>
-          </select>
-        </div>
-
-        {gammaMode === 'fixed' && (
-          <div>
-            <label className="block text-sm text-gray-700 mb-1">
-              Gamma (fixed)
-            </label>
-            <input
-              type="number"
-              value={gammaFixed}
-              onChange={(e) => setGammaFixed(e.target.value)}
-              step="0.1"
-              min="0"
-              max="1"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-        )}
       </div>
     </div>
   )
