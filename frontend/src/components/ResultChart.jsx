@@ -120,11 +120,12 @@ export function ResultChart({ data, dataKeys, title, xLabel = "Time (s)", yLabel
             tickFormatter={xFormatter}
           />
           <YAxis 
-            label={{ value: yLabel, angle: -90, position: 'insideLeft' }}
+            label={{ value: yLabel, angle: -90, position: 'insideLeft', offset: -10, dx: -20 }}
             scale={useLogScale ? 'log' : 'linear'}
             domain={useLogScale ? ['auto', 'auto'] : [0, valueMax * 1.1]}
             ticks={useLogScale ? yTicks : undefined}
             tickFormatter={yFormatter}
+            width={useLogScale ? 100 : 70}
           />
           <Tooltip 
             formatter={(value) => value != null ? value.toFixed(6) : ''}
