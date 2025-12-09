@@ -94,11 +94,11 @@ export function FitFosterTab() {
             <div className="grid grid-cols-2 gap-2 text-sm">
               <div>
                 <span className="text-gray-600">RMS error:</span>
-                <span className="ml-2 font-mono">{fosterResult.rms_error?.toFixed(2)}%</span>
+                <span className="ml-2 font-mono">{fosterResult.rms_error != null ? `${fosterResult.rms_error.toFixed(2)}%` : 'N/A'}</span>
               </div>
               <div>
                 <span className="text-gray-600">DC check (tail Zth vs sum(R)):</span>
-                <span className="ml-2 font-mono">{fosterResult.dc_error?.toFixed(2)}%</span>
+                <span className="ml-2 font-mono">{fosterResult.dc_error != null ? `${fosterResult.dc_error.toFixed(2)}%` : 'N/A'}</span>
               </div>
             </div>
           </div>
