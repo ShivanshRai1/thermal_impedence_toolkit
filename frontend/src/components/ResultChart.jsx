@@ -82,6 +82,9 @@ export function ResultChart({ data, dataKeys, title, xLabel = "Time (s)", yLabel
   const valueMin = Math.min(...allValues)
   const valueMax = Math.max(...allValues)
   
+  // Use larger left margin for log scale (for power notation)
+  const leftMargin = useLogScale ? 80 : 60
+  
   let xTicks, yTicks, xFormatter, yFormatter, xScale, xDomain
   
   if (useLogScale) {
@@ -104,7 +107,7 @@ export function ResultChart({ data, dataKeys, title, xLabel = "Time (s)", yLabel
     <div className="bg-white p-4 rounded-lg border border-gray-200">
       {title && <h3 className="text-lg font-semibold mb-3">{title}</h3>}
       <ResponsiveContainer width="100%" height={400}>
-        <LineChart data={data} margin={{ top: 5, right: 30, left: 60, bottom: 5 }}>
+        <LineChart data={data} margin={{ top: 5, right: 30, left: leftMargin, bottom: 5 }}>
           <CartesianGrid strokeDasharray="3 3" />
           <XAxis 
             dataKey="tp" 
