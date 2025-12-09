@@ -7,6 +7,7 @@ export function FosterToCauerTab() {
   const { fosterResult, cauerResult, setCauerResult } = useData()
   const { loading, error, fosterToCauer } = useApi()
   const [localError, setLocalError] = useState(null)
+  const [useLogScale, setUseLogScale] = useState(true)
 
   const handleConvert = async () => {
     if (!fosterResult || !fosterResult.R || !fosterResult.C) {
@@ -66,12 +67,28 @@ export function FosterToCauerTab() {
             </div>
           )}
 
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setUseLogScale(true)}
+              className={`px-3 py-1 rounded text-sm ${useLogScale ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}`}
+            >
+              Log Scale
+            </button>
+            <button
+              onClick={() => setUseLogScale(false)}
+              className={`px-3 py-1 rounded text-sm ${!useLogScale ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}`}
+            >
+              Linear Scale
+            </button>
+          </div>
+
           <ResultChart
             data={chartData}
             dataKeys={[
               { key: 'Zth', name: 'Cauer Equivalent', dot: false }
             ]}
             title="Cauer Network Response"
+            useLogScale={useLogScale}
           />
 
           <div className="bg-white p-4 rounded-lg border border-gray-200">

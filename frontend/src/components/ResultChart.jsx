@@ -1,6 +1,25 @@
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 
-export function ResultChart({ data, dataKeys, title, xLabel = "Time (s)", yLabel = "Zth (K/W)" }) {
+const formatAxisNumber = (value) => {
+  if (value === 0) return '0'
+  const absValue = Math.abs(value)
+  
+  // For very small or very large numbers, use scientific notation
+  if (absValue < 1e-4 || absValue > 1e4) {
+    const exponent = Math.floor(Math.log10(absValue))
+    const mantissa = (value / Math.pow(10, exponent)).toFixed(1)
+    return `10^${exponent}`
+  }
+  
+  // For numbers close to 1, show with appropriate decimals
+  if (absValue < 1) {
+    return value.toFixed(4).replace(/\.?0+$/, '')
+  }
+  
+  return value.toFixed(2).replace(/\.?0+$/, '')
+}
+
+export function ResultChart({ data, dataKeys, title, xLabel = "Time (s)", yLabel = "Zth (K/W)", useLogScale = true }) {
   if (!data || data.length === 0) {
     return (
       <div className="flex items-center justify-center h-64 bg-gray-50 rounded-lg border border-gray-200">
@@ -20,12 +39,19 @@ export function ResultChart({ data, dataKeys, title, xLabel = "Time (s)", yLabel
           <XAxis 
             dataKey="tp" 
             label={{ value: xLabel, position: 'insideBottom', offset: -5 }}
-            scale="log"
-            domain={['auto', 'auto']}
+            scale={useLogScale ? "log" : "linear"}
+            domain={useLogScale ? ['auto', 'auto'] : ['auto', 'auto']}
             allowDataOverflow
+            tickFormatter={formatAxisNumber}
           />
-          <YAxis label={{ value: yLabel, angle: -90, position: 'insideLeft' }} />
-          <Tooltip />
+          <YAxis 
+            label={{ value: yLabel, angle: -90, position: 'insideLeft' }}
+            tickFormatter={formatAxisNumber}
+          />
+          <Tooltip 
+            formatter={(value) => value?.toFixed(6)}
+            labelFormatter={(label) => `t: ${label?.toFixed(10)}`}
+          />
           <Legend />
           {dataKeys.map((key, idx) => (
             <Line
