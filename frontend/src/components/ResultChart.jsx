@@ -4,19 +4,40 @@ const formatAxisNumber = (value) => {
   if (value === 0) return '0'
   const absValue = Math.abs(value)
   
-  // For very small or very large numbers, use scientific notation
-  if (absValue < 1e-4 || absValue > 1e4) {
-    const exponent = Math.floor(Math.log10(absValue))
-    const mantissa = (value / Math.pow(10, exponent)).toFixed(1)
-    return `10^${exponent}`
+  // For log scale, show powers of 10
+  if (absValue > 0) {
+    const exponent = Math.round(Math.log10(absValue))
+    if (Math.abs(Math.log10(absValue) - exponent) < 0.2) {
+      return `10^${exponent}`
+    }
   }
   
-  // For numbers close to 1, show with appropriate decimals
+  // For very small numbers
+  if (absValue < 1e-4) {
+    return value.toExponential(1)
+  }
+  
+  // For normal range numbers
   if (absValue < 1) {
     return value.toFixed(4).replace(/\.?0+$/, '')
   }
   
   return value.toFixed(2).replace(/\.?0+$/, '')
+}
+
+const generateLogTicks = (dataMin, dataMax) => {
+  if (!dataMin || !dataMax || dataMin <= 0 || dataMax <= 0) {
+    return []
+  }
+  
+  const minExp = Math.floor(Math.log10(dataMin))
+  const maxExp = Math.ceil(Math.log10(dataMax))
+  
+  const ticks = []
+  for (let i = minExp; i <= maxExp; i++) {
+    ticks.push(Math.pow(10, i))
+  }
+  return ticks
 }
 
 export function ResultChart({ data, dataKeys, title, xLabel = "Time (s)", yLabel = "Zth (K/W)", useLogScale = true }) {
@@ -29,6 +50,12 @@ export function ResultChart({ data, dataKeys, title, xLabel = "Time (s)", yLabel
   }
 
   const colors = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6']
+  
+  // Get data range for ticks
+  const tpValues = data.map(d => d.tp).filter(t => t > 0)
+  const dataMin = Math.min(...tpValues)
+  const dataMax = Math.max(...tpValues)
+  const logTicks = useLogScale ? generateLogTicks(dataMin, dataMax) : undefined
 
   return (
     <div className="bg-white p-4 rounded-lg border border-gray-200">
@@ -40,8 +67,10 @@ export function ResultChart({ data, dataKeys, title, xLabel = "Time (s)", yLabel
             dataKey="tp" 
             label={{ value: xLabel, position: 'insideBottom', offset: -5 }}
             scale={useLogScale ? "log" : "linear"}
-            domain={useLogScale ? ['auto', 'auto'] : ['auto', 'auto']}
-            allowDataOverflow
+            domain={useLogScale ? [Math.min(...tpValues) * 0.8, Math.max(...tpValues) * 1.2] : ['auto', 'auto']}
+            type="number"
+            allowDataOverflow={true}
+            ticks={useLogScale ? logTicks : undefined}
             tickFormatter={formatAxisNumber}
           />
           <YAxis 
@@ -50,7 +79,11 @@ export function ResultChart({ data, dataKeys, title, xLabel = "Time (s)", yLabel
           />
           <Tooltip 
             formatter={(value) => value?.toFixed(6)}
-            labelFormatter={(label) => `t: ${label?.toFixed(10)}`}
+            labelFormatter={(label) => {
+              if (label === null || label === undefined) return ''
+              return `t: ${label.toExponential(3)}`
+            }}
+            contentStyle={{ backgroundColor: '#fff', border: '1px solid #ccc' }}
           />
           <Legend />
           {dataKeys.map((key, idx) => (
@@ -60,9 +93,10 @@ export function ResultChart({ data, dataKeys, title, xLabel = "Time (s)", yLabel
               dataKey={key.key}
               name={key.name}
               stroke={colors[idx % colors.length]}
-              dot={key.dot !== false}
+              dot={key.dot !== false ? { r: 3 } : false}
               strokeWidth={key.strokeWidth || 2}
               strokeDasharray={key.dashed ? "5 5" : ""}
+              isAnimationActive={false}
             />
           ))}
         </LineChart>
