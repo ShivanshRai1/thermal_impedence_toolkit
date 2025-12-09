@@ -4,11 +4,19 @@ const formatLogAxisNumber = (value) => {
   if (value === 0) return '0'
   const absValue = Math.abs(value)
   
-  // For log scale, show powers of 10
+  // For log scale, show powers of 10 with superscript
   if (absValue > 0) {
     const exponent = Math.round(Math.log10(absValue))
     if (Math.abs(Math.log10(absValue) - exponent) < 0.15) {
-      return `10^${exponent}`
+      // Create superscript format
+      const superscriptMap = {
+        '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴', 
+        '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹',
+        '-': '⁻'
+      }
+      const expStr = exponent.toString()
+      const superscript = expStr.split('').map(c => superscriptMap[c] || c).join('')
+      return `10${superscript}`
     }
   }
   return value.toExponential(1)
