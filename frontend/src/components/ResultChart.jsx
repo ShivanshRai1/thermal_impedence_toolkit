@@ -104,7 +104,7 @@ export function ResultChart({ data, dataKeys, title, xLabel = "Time (s)", yLabel
     <div className="bg-white p-4 rounded-lg border border-gray-200">
       {title && <h3 className="text-lg font-semibold mb-3">{title}</h3>}
       <ResponsiveContainer width="100%" height={400}>
-        <LineChart data={data} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+        <LineChart data={data} margin={{ top: 5, right: 30, left: 60, bottom: 5 }}>
           <CartesianGrid strokeDasharray="3 3" />
           <XAxis 
             dataKey="tp" 
