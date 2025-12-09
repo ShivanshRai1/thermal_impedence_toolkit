@@ -131,13 +131,17 @@ def api_fit_foster():
     
     fit_series = [{'tp': float(t_sample[i]), 'Zth': float(zfit_sample[i])} for i in range(len(t_sample))]
     
+    # Ensure validation metrics are proper Python floats
+    rms_val = float(rms_error)
+    dc_val = float(dc_error)
+    
     return jsonify({
         'R': R,
         'C': C,
         'tau': tau,
         'fitSeries': fit_series,
-        'rms_error': float(rms_error),
-        'dc_error': float(dc_error)
+        'rms_error': rms_val,
+        'dc_error': dc_val
     })
 
 
