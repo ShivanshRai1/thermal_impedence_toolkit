@@ -125,6 +125,10 @@ def api_fit_foster():
     C = [float(c) for c in C]
     tau = [float(t) for t in tau]
     
+    # Debug: print validation metrics
+    print(f"DEBUG: rms_error = {rms_error}, type = {type(rms_error)}")
+    print(f"DEBUG: dc_error = {dc_error}, type = {type(dc_error)}")
+    
     # Produce fitted series with smooth sampling
     t_sample = np.unique(np.concatenate((np.logspace(np.log10(t_orig.min()), np.log10(t_orig.max()), 200), t_orig)))
     zfit_sample = _design_matrix(t_sample, np.array(tau)) @ np.array(R)
@@ -134,6 +138,8 @@ def api_fit_foster():
     # Ensure validation metrics are proper Python floats
     rms_val = float(rms_error)
     dc_val = float(dc_error)
+    
+    print(f"DEBUG: After conversion - rms_val = {rms_val}, dc_val = {dc_val}")
     
     return jsonify({
         'R': R,
