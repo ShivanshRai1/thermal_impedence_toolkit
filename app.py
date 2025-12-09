@@ -12,40 +12,85 @@ import numpy as np
 from pathlib import Path
 
 try:
-    from scipy.optimize import curve_fit
+    from scipy.optimize import least_squares
 except Exception as e:
-    curve_fit = None
+    least_squares = None
 
 app = Flask(__name__, static_folder='.')
 CORS(app)
 
 # ----------------------------- helper math ---------------------------------
 
-def foster_model(t, *params):
-    # params is [A1, tau1, A2, tau2, ...] where Ai = R_i, tau_i = R_i*C_i
-    # Z(t) = sum_i A_i * (1 - exp(-t / tau_i))
-    t = np.asarray(t)
-    Z = np.zeros_like(t, dtype=float)
-    for i in range(0, len(params), 2):
-        A = params[i]
-        tau = params[i+1]
-        Z += A * (1.0 - np.exp(-t / np.maximum(tau, 1e-30)))
-    return Z
+def _design_matrix(t, tau):
+    """Compute design matrix Phi where Phi[i,j] = 1 - exp(-t[i]/tau[j])"""
+    return 1.0 - np.exp(-np.outer(t, 1.0/np.maximum(tau, 1e-300)))
 
+def _solve_R(t, z, tau):
+    """Solve for R values given tau using linear least squares"""
+    Phi = _design_matrix(t, tau)
+    R, *_ = np.linalg.lstsq(Phi, z, rcond=None)
+    return np.clip(R, 1e-18, None)
 
-def initial_guess_for_foster(t, Z, N):
-    # simple heuristic: spread taus logarithmically between min and max t
-    t = np.asarray(t)
-    tmin = max(t.min(), 1e-12)
-    tmax = max(t.max(), tmin*1e6)
-    taus = np.logspace(np.log10(tmin), np.log10(tmax), N)
-    # amplitude guesses: split final Z by N
-    Zfinal = Z[-1] if len(Z) else 1.0
-    As = np.full(N, Zfinal / N)
-    params = []
-    for A, tau in zip(As, taus):
-        params.extend([float(A), float(tau)])
-    return params
+def _residual_tau(logtau, t, z):
+    """Residual function for tau optimization"""
+    tau = np.exp(logtau)
+    R = _solve_R(t, z, tau)
+    return _design_matrix(t, tau) @ R - z
+
+def fit_foster(t, z, N=4, refine_iters=2):
+    """
+    Fit a Foster RC model to thermal impedance data.
+    Uses two-step optimization: solve R given tau, then optimize tau iteratively.
+    """
+    t = np.asarray(t, float)
+    z = np.asarray(z, float)
+    
+    if t.ndim != 1 or z.ndim != 1 or t.size != z.size or t.size < N:
+        raise ValueError("Bad inputs or insufficient points")
+    
+    # Filter valid points
+    mask = np.isfinite(t) & np.isfinite(z) & (t > 0)
+    t = t[mask]
+    z = z[mask]
+    
+    # Sort by time
+    order = np.argsort(t)
+    t = t[order]
+    z = z[order]
+    
+    # Initialize tau values logarithmically
+    tmin = max(np.min(t), 1e-9)
+    tmax = np.max(t)
+    tau = np.geomspace(tmin/5, tmax*5, N)
+    
+    # Initial R solve
+    R = _solve_R(t, z, tau)
+    
+    # Iterative refinement
+    for _ in range(refine_iters):
+        if least_squares is not None:
+            res = least_squares(_residual_tau, np.log(tau), args=(t, z))
+            tau = np.exp(res.x)
+        R = _solve_R(t, z, tau)
+    
+    # Compute C = tau / R
+    C = tau / np.maximum(R, 1e-300)
+    
+    # Sort by tau
+    idx = np.argsort(tau)
+    R = R[idx]
+    C = C[idx]
+    tau = tau[idx]
+    
+    # Compute fitted curve
+    zfit = _design_matrix(t, tau) @ R
+    
+    # Compute validation metrics
+    rms_error = np.sqrt(np.mean((z - zfit) ** 2)) / (np.max(z) - np.min(z) + 1e-30) * 100
+    dc_check = np.sum(R)
+    dc_error = abs(dc_check - z[-1]) / (z[-1] + 1e-30) * 100
+    
+    return R, C, tau, zfit, z, t, rms_error, dc_error
 
 
 # ----------------------------- API endpoints -------------------------------
@@ -68,40 +113,32 @@ def api_fit_foster():
         return jsonify({'error': 'need at least 3 points to fit'}), 400
 
     tp = np.array([p.get('tp') for p in points], dtype=float)
-    Z = np.array([p.get('Zth') for p in points], dtype=float)
+    Zth = np.array([p.get('Zth') for p in points], dtype=float)
 
-    # sort
-    order = np.argsort(tp)
-    tp = tp[order]
-    Z = Z[order]
-
-    if curve_fit is None:
-        # SciPy not installed: return a simple heuristic decomposition
-        params = initial_guess_for_foster(tp, Z, N)
-        R = [params[i] for i in range(0,len(params),2)]
-        tau = [params[i+1] for i in range(0,len(params),2)]
-        C = [tau[i] / max(R[i], 1e-30) for i in range(len(R))]
-        return jsonify({'warning': 'scipy.optimize.curve_fit not available; returned heuristic split',
-                        'R': R, 'C': C, 'fitSeries': [{'tp': float(tp[i]), 'Zth': float(Z[i])} for i in range(len(tp))]})
-
-    # perform nonlinear least squares
-    p0 = initial_guess_for_foster(tp, Z, N)
     try:
-        popt, pcov = curve_fit(foster_model, tp, Z, p0=p0, maxfev=20000)
+        R, C, tau, zfit, t_orig, z_orig, rms_error, dc_error = fit_foster(tp, Zth, N=N, refine_iters=2)
     except Exception as e:
-        return jsonify({'error': 'curve_fit failed', 'details': str(e)}), 500
+        return jsonify({'error': 'Foster fitting failed', 'details': str(e)}), 500
 
-    # parse parameters
-    R = [float(popt[i]) for i in range(0,len(popt),2)]
-    tau = [float(popt[i+1]) for i in range(0,len(popt),2)]
-    C = [tau[i] / max(R[i], 1e-30) for i in range(len(R))]
-
-    # produce fitted series (sampled)
-    t_sample = np.unique(np.concatenate((np.linspace(tp.min(), tp.max(), 200), tp)))
-    Z_fit = foster_model(t_sample, *popt)
-    fit_series = [{'tp': float(t_sample[i]), 'Zth': float(Z_fit[i])} for i in range(len(t_sample))]
-
-    return jsonify({'R': R, 'C': C, 'fitSeries': fit_series})
+    # Build response
+    R = [float(r) for r in R]
+    C = [float(c) for c in C]
+    tau = [float(t) for t in tau]
+    
+    # Produce fitted series with smooth sampling
+    t_sample = np.unique(np.concatenate((np.logspace(np.log10(t_orig.min()), np.log10(t_orig.max()), 200), t_orig)))
+    zfit_sample = _design_matrix(t_sample, np.array(tau)) @ np.array(R)
+    
+    fit_series = [{'tp': float(t_sample[i]), 'Zth': float(zfit_sample[i])} for i in range(len(t_sample))]
+    
+    return jsonify({
+        'R': R,
+        'C': C,
+        'tau': tau,
+        'fitSeries': fit_series,
+        'rms_error': float(rms_error),
+        'dc_error': float(dc_error)
+    })
 
 
 @app.route('/api/foster_to_cauer', methods=['POST'])
